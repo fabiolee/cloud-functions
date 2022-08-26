@@ -19,9 +19,11 @@ type StockData = {
   top: boolean;
 }
 
-const getStock = async (
+const getStockDocSnapshot = async (
     code: string | string[] | qs.ParsedQs | qs.ParsedQs[]
-): Promise<FirebaseFirestore.DocumentData> => {
+): Promise<
+  FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>
+> => {
   const result = await admin
       .firestore()
       .collection(DB_TABLE_NAME)
@@ -32,7 +34,7 @@ const getStock = async (
   } else if (result.size > 1) {
     throw new Error("More than 1 record found!");
   } else {
-    return result.docs[0].data();
+    return result.docs[0];
   }
 };
 
@@ -48,8 +50,8 @@ export const showStock = functions
         return;
       }
       try {
-        const doc = await getStock(code);
-        response.json({doc});
+        const docSnapshot = await getStockDocSnapshot(code);
+        response.json({doc: docSnapshot.data()});
       } catch (error) {
         if (error instanceof Error) {
           onResponseFailure(response, error.message);
@@ -68,9 +70,16 @@ export const updateStock = functions
         return;
       }
       try {
-        const doc = await getStock(code);
-        doc.update({price: 9.10});
-        response.json({doc});
+        const docSnapshot = await getStockDocSnapshot(code);
+        const stock: Partial<StockData> = {
+          price: 8.94,
+          roe: 9.03,
+          pe: 14.00,
+          dy: 6.49,
+          top: false,
+        };
+        const result = docSnapshot.ref.update(stock);
+        response.json({result});
       } catch (error) {
         if (error instanceof Error) {
           onResponseFailure(response, error.message);
@@ -89,25 +98,26 @@ export const addStock = functions
         return;
       }
       try {
-        await getStock(code);
+        await getStockDocSnapshot(code);
         onResponseFailure(response, "There is a record found!");
       } catch (error) {
-        const newStock: StockData = {
-          category: "Health Care Equipment & Services",
+        const stock: StockData = {
           code: "5168",
           countryCode: "MY",
-          dy: 30.57,
+          symbol: "HARTA",
           name: "Hartalega Holdings Berhad",
-          pe: 5.64,
+          category: "Health Care Equipment & Services",
           price: 1.75,
           roe: 20.83,
-          symbol: "HARTA",
+          pe: 5.64,
+          dy: 30.57,
           top: true,
         };
-        const doc = await admin
+        const docRef = await admin
             .firestore()
             .collection(DB_TABLE_NAME)
-            .add(newStock);
-        response.json({doc});
+            .add(stock);
+        const docSnapshot = await docRef.get();
+        response.json({doc: docSnapshot.data()});
       }
     });
